@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="portal_my_task_stage_dropdown" inherit_id="project.portal_my_task">
+        <xpath expr="//div[@class='col-auto']" position="replace">
+            <div class="col-auto">
+                <small class="text-end">Stage:</small>
+                <t t-if="can_change_stage and stages">
+                    <form method="POST" t-attf-action="/my/tasks/#{task.id}/change_stage" class="d-inline-block">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="access_token" t-att-value="task.access_token"/>
+                        <select name="stage_id" class="form-select form-select-sm d-inline-block w-auto"
+                                onchange="this.form.submit()">
+                            <t t-foreach="stages" t-as="stage">
+                                <option t-att-value="stage.id" t-att-selected="stage.id == task.stage_id.id"
+                                        t-esc="stage.name"/>
+                            </t>
+                        </select>
+                        <noscript>
+                            <button type="submit" class="btn btn-sm btn-primary ms-1">Change</button>
+                        </noscript>
+                    </form>
+                </t>
+                <t t-else="">
+                    <t t-call="project.portal_my_tasks_badge_widget_template"/>
+                </t>
+            </div>
+        </xpath>
+    </template>
+</odoo>
