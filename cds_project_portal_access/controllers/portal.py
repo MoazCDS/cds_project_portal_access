@@ -1,11 +1,11 @@
 from werkzeug.exceptions import NotFound
 
-from odoo import http
+from odoo import fields, http
 from odoo.fields import Domain
 from odoo.http import request
 
 from odoo.addons.portal.controllers.portal_thread import PortalChatter, get_portal_partner
-from odoo.addons.project.controllers.portal import ProjectCustomerPortal
+from odoo.addons.hr_timesheet.controllers.portal import TimesheetProjectCustomerPortal
 
 
 class CdsPortalChatter(PortalChatter):
@@ -65,16 +65,27 @@ class CdsPortalChatter(PortalChatter):
         }
 
 
-class CdsProjectPortal(ProjectCustomerPortal):
+class CdsProjectPortal(TimesheetProjectCustomerPortal):
+
+    def _has_trainees_group(self):
+        return request.env.user.has_group(
+            'cds_project_portal_access.group_cds_portal_trainees'
+        )
 
     def _task_get_page_view_values(self, task, access_token, **kwargs):
         values = super()._task_get_page_view_values(task, access_token, **kwargs)
-        can_change_stage = request.env.user.has_group(
-            'cds_project_portal_access.group_cds_portal_trainees'
-        )
-        if can_change_stage and task.project_id:
+        is_trainee = self._has_trainees_group()
+        if is_trainee and task.project_id:
             values['stages'] = task.project_id.type_ids.sorted(lambda s: (s.sequence, s.id))
-        values['can_change_stage'] = can_change_stage
+        values['can_change_stage'] = is_trainee
+        values['can_log_timesheet'] = is_trainee
+        if is_trainee and 'timesheets' not in values:
+            domain = request.env['account.analytic.line']._timesheet_get_portal_domain()
+            task_domain = Domain(domain) & Domain('task_id', '=', task.id)
+            values['timesheets'] = request.env['account.analytic.line'].sudo().search(task_domain)
+            values['allow_timesheets'] = task.allow_timesheets
+            values['is_uom_day'] = request.env['account.analytic.line']._is_timesheet_encode_uom_day()
+        values['today'] = fields.Date.today()
         return values
 
     @http.route(['/my/tasks/<int:task_id>/change_stage'], type='http', auth='public',
@@ -84,9 +95,7 @@ class CdsProjectPortal(ProjectCustomerPortal):
             task_sudo = self._document_check_access('project.task', task_id, access_token)
         except (AccessError, MissingError):
             return request.redirect('/my')
-        if not request.env.user.has_group(
-            'cds_project_portal_access.group_cds_portal_trainees'
-        ):
+        if not self._has_trainees_group():
             return request.redirect('/my')
         if not stage_id:
             return request.redirect(f'/my/tasks/{task_id}')
@@ -94,4 +103,27 @@ class CdsProjectPortal(ProjectCustomerPortal):
         if not stage or stage not in task_sudo.project_id.type_ids:
             return request.redirect(f'/my/tasks/{task_id}')
         task_sudo.write({'stage_id': int(stage_id)})
+        return request.redirect(f'/my/tasks/{task_id}')
+
+    @http.route(['/my/tasks/<int:task_id>/timesheet/add'], type='http', auth='public',
+                website=True, methods=['POST'])
+    def add_timesheet(self, task_id, unit_amount=None, name=None, date=None, access_token=None, **kw):
+        try:
+            task_sudo = self._document_check_access('project.task', task_id, access_token)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        if not self._has_trainees_group():
+            return request.redirect('/my')
+        if not task_sudo.allow_timesheets:
+            return request.redirect(f'/my/tasks/{task_id}')
+        if not unit_amount or float(unit_amount) <= 0:
+            return request.redirect(f'/my/tasks/{task_id}')
+        vals = {
+            'task_id': task_id,
+            'project_id': task_sudo.project_id.id,
+            'unit_amount': float(unit_amount),
+            'name': name or '',
+            'date': date or fields.Date.today(),
+        }
+        request.env['account.analytic.line'].sudo().create(vals)
         return request.redirect(f'/my/tasks/{task_id}')
