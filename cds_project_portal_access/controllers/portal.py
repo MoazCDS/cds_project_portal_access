@@ -79,12 +79,6 @@ class CdsProjectPortal(TimesheetProjectCustomerPortal):
             values['stages'] = task.project_id.type_ids.sorted(lambda s: (s.sequence, s.id))
         values['can_change_stage'] = is_trainee
         values['can_log_timesheet'] = is_trainee
-        if is_trainee and 'timesheets' not in values:
-            domain = request.env['account.analytic.line']._timesheet_get_portal_domain()
-            task_domain = Domain(domain) & Domain('task_id', '=', task.id)
-            values['timesheets'] = request.env['account.analytic.line'].sudo().search(task_domain)
-            values['allow_timesheets'] = task.allow_timesheets
-            values['is_uom_day'] = request.env['account.analytic.line']._is_timesheet_encode_uom_day()
         values['today'] = fields.Date.today()
         return values
 
