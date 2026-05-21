@@ -5,7 +5,7 @@ from odoo.fields import Domain
 from odoo.http import request
 
 from odoo.addons.portal.controllers.portal_thread import PortalChatter, get_portal_partner
-from odoo.addons.hr_timesheet.controllers.portal import TimesheetProjectCustomerPortal
+from odoo.addons.portal.controllers.portal import CustomerPortal
 
 
 class CdsPortalChatter(PortalChatter):
@@ -65,7 +65,7 @@ class CdsPortalChatter(PortalChatter):
         }
 
 
-class CdsProjectPortal(TimesheetProjectCustomerPortal):
+class CdsProjectPortal(CustomerPortal):
 
     def _has_trainees_group(self):
         return request.env.user.has_group(
@@ -78,7 +78,6 @@ class CdsProjectPortal(TimesheetProjectCustomerPortal):
         if is_trainee and task.project_id:
             values['stages'] = task.project_id.type_ids.sorted(lambda s: (s.sequence, s.id))
         values['can_change_stage'] = is_trainee
-        values['can_log_timesheet'] = is_trainee
         values['today'] = fields.Date.today()
         return values
 
@@ -97,27 +96,4 @@ class CdsProjectPortal(TimesheetProjectCustomerPortal):
         if not stage or stage not in task_sudo.project_id.type_ids:
             return request.redirect(f'/my/tasks/{task_id}')
         task_sudo.write({'stage_id': int(stage_id)})
-        return request.redirect(f'/my/tasks/{task_id}')
-
-    @http.route(['/my/tasks/<int:task_id>/timesheet/add'], type='http', auth='public',
-                website=True, methods=['POST'])
-    def add_timesheet(self, task_id, unit_amount=None, name=None, date=None, access_token=None, **kw):
-        try:
-            task_sudo = self._document_check_access('project.task', task_id, access_token)
-        except (AccessError, MissingError):
-            return request.redirect('/my')
-        if not self._has_trainees_group():
-            return request.redirect('/my')
-        if not task_sudo.allow_timesheets:
-            return request.redirect(f'/my/tasks/{task_id}')
-        if not unit_amount or float(unit_amount) <= 0:
-            return request.redirect(f'/my/tasks/{task_id}')
-        vals = {
-            'task_id': task_id,
-            'project_id': task_sudo.project_id.id,
-            'unit_amount': float(unit_amount),
-            'name': name or '',
-            'date': date or fields.Date.today(),
-        }
-        request.env['account.analytic.line'].sudo().create(vals)
         return request.redirect(f'/my/tasks/{task_id}')

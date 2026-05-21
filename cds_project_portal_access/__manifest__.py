@@ -12,11 +12,10 @@
         'Moaz Elbahr',
     ],
     'version': '0.1',
-    'depends': ['base', 'mail', 'project', 'hr_timesheet'],
+    'depends': ['base', 'mail', 'project'],
     'data': [
         'security/cds_project_portal_access_security.xml',
         'views/portal_templates.xml',
-        'views/timesheet_portal_templates.xml',
     ],
     'assets': {},
     "pre_init_hook": None,
